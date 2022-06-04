@@ -1,0 +1,19 @@
+create table IMDB(Poster_Link string, Series_Title string, Released_Year int,Certificate string,Runtime int,
+Genre array<string>,IMDB_Rating float,Overview	string,Meta_score int,Director string,
+Star1 string, Star2 string, Star3 string, Star4 string, No_of_Votes double, Gross double)
+row format delimited fields terminated by '\t'
+collection items terminated by '#'
+stored as textfile
+location '/practice'
+
+create table IMDB(Poster_Link string,Series_Title string, Released_Year int, Certificate string, Runtime double,
+Genre array<string>,IMDB_Rating float,
+Overview string, Metascore double, Director string,
+Star1 string, Star2 string, Star3 string, Star4 string, No_of_Votes double, Gross double)
+row format delimited fields terminated by '\t'
+collection items terminated by '#'
+STORED AS TEXTFILE
+LOCATION '/practice'
+tblproperties ("skip.header.line.count"="1");
+
+load data local inpath'/home/tguser/Desktop/pst it solution/datasets/imdb_top_1000.txt' into table IMDB;
