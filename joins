@@ -1,0 +1,162 @@
+create table cr(cid int,cname string,revenue int)
+row format delimited
+fields terminated by ','
+stored as textfile ;
+
+create table cr_temp(cid int,temp int)
+row format delimited
+fields terminated by ','
+stored as textfile ;
+
+create table cr_ll(cid int,letter2 String)
+row format delimited
+fields terminated by ','
+stored as textfile ;
+
+create table cr_l(cid int,letter string)
+row format delimited
+fields terminated by ','
+stored as textfile ;
+
+
+load data local inpath '/home/hduser/Desktop/data/joins/01cr' into table cr ; 
+
+load data local inpath '/home/hduser/Desktop/data/joins/02cr_temp' into table cr_temp ; 
+
+load data local inpath '/home/hduser/Desktop/data/joins/03cr_states' into table cr_ll ;
+
+load data local inpath '/home/hduser/Desktop/data/joins/04cr_letter' into table cr_l ;
+
+
+create table cr_bucketed(cid int,cname string,revenue int)
+clustered by (cid) sorted by (cid) into 5 buckets
+row format delimited
+fields terminated by ','
+stored as textfile ;
+
+create table cr_temp_bucketed(cid int,temp int)
+clustered by (cid) sorted by (cid) into 5 buckets
+row format delimited
+fields terminated by ','
+stored as textfile ;
+
+create table cr_ll_bucketed(cid int,letter2 int)
+clustered by (cid) sorted by (cid) into 5 buckets
+row format delimited
+fields terminated by ','
+stored as textfile ;
+
+create table cr_l_bucketed(cid int,letter int)
+clustered by (cid) sorted by (cid)  into 5 buckets
+row format delimited
+fields terminated by ','
+stored as textfile ;
+
+
+insert into table cr_bucketed select * from cr order by cid ;
+
+insert into table cr_temp_bucketed select * from cr_temp order by cid ;
+
+insert into table cr_ll_bucketed select * from cr_ll_bucketed order by cid ;
+
+insert into table cr_l_bucketed select * from cr_l order by cid ;
+
+
+(cr : 100GB , cr_temp : 10MB , cr_ll : 17MB ,cr_l : 5MB)
+
+
+Normal join : 
+
+	> select t1.cname,t2.temp,t3.letter2,t4.letter from 
+	> cr t1 join cr_temp t2 on t1.cid = t2.cid
+	> join cr_ll t3 on t2.cid = t3.cid 
+	> join cr_l t4 on t3.cid = t4.cid ;
+
+	Ex. cr and cr_temp
+	    cr_l and cr_ll
+
+Map side Join :
+
+	select /* +MAPJOIN(t2,t3,t4)*/ t1.cname,t2.temp,t3.letter2,t4.letter from cr t1 join cr_temp t2 on t1.cid = t2.cid join cr_ll t3 on t2.cid = t3.cid join cr_l t4 on t3.cid = t4.cid ;
+
+	Ex. cr and cr_temp
+	    cr_l and cr_ll
+
+
+Bucket Map join :
+
+	set hive.optimize.bucketmapjoin=true
+
+	select /* +MAPJOIN(t2,t3,t4)*/  t1.cname,t2.temp,t3.letter2,t4.letter from cr_bucketed t1 join cr_temp t2 on t1.cid = t2.cid join cr_ll_bucketed t3 on t2.cid = t3.cid join cr_l_bucketed t4 on t3.cid = t4.cid ;
+
+	Ex. cr and cr_temp
+	    cr_l and cr_ll
+
+
+SortMergeBucket join : 
+
+	Ex1. cr and cr_temp
+	    cr_l and cr_ll
+
+	Ex2. Join all four tables
+
+
+
+
+
+Map Side
+
+Criteria : 
+1)One table should be large , other tables should be small(<25MB)
+
+Properties : 
+> SET hive.auto.convert.join=true; -- default true after v0.11.0
+> SET hive.mapjoin.smalltable.filesize=600000000; -- default 25m
+> SET hive.auto.convert.join.noconditionaltask.size=10000000; -- default value above controls the size of table to fit in memory
+
+Bucket Map Join
+
+Criteria : 
+ 
+1) both tables should be bucketed on same column
+2) Number of buckets , either same or in multiples
+3) Join should be based on Bucketed column
+
+properties : 
+> SET hive.auto.convert.join=true; -- default true
+> SET hive.optimize.bucketmapjoin=true; -- default false
+
+SMB Join 
+
+Criteria :
+1) Tables of large size
+2) Number of buckets should be same for all tables
+3) Data should be sorted by bucketed column
+4) join should be performed by bucketed column
+4) Enable properties listed below
+
+
+> SET hive.input.format=org.apache.hadoop.hive.ql.io.BucketizedHiveInputFormat;
+> SET hive.auto.convert.sortmerge.join=true;
+> SET hive.optimize.bucketmapjoin=true;
+> SET hive.optimize.bucketmapjoin.sortedmerge=true;
+> SET hive.auto.convert.sortmerge.join.noconditionaltask=true;
+
+
+SMBM Join 
+
+1) Number of buckets should be same for all tables
+2) Data should be sorted by  bucket column
+3) Enable properties listed below
+4) join should be performed by bucketed column
+5) one large and other small tables
+
+> SET hive.auto.convert.join=true;
+> SET hive.auto.convert.sortmerge.join=true
+> SET hive.optimize.bucketmapjoin=true;
+> SET hive.optimize.bucketmapjoin.sortedmerge=true;
+> SET hive.auto.convert.sortmerge.join.noconditionaltask=true;
+> SET hive.auto.convert.sortmerge.join.bigtable.selection.policy=
+org.apache.hadoop.hive.ql.optimizer.TableSizeBasedBigTableSelectorForAutoSM
+J;
+
